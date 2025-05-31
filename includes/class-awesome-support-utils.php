@@ -150,8 +150,8 @@ class Priority_Ticket_Payment_Awesome_Support_Utils {
         // Set ticket metadata based on priority tier
         self::set_ticket_priority_metadata($ticket_id, $user_priority, $form_data, $order, $submission);
         
-        // Attach files (skip for Ticket C / free tier)
-        if ($user_priority !== 'C' && !empty($submission['attachments'])) {
+        // Attach files (skip for Priority C and D / free tiers)
+        if ($user_priority !== 'C' && $user_priority !== 'D' && !empty($submission['attachments'])) {
             self::attach_files_to_ticket($ticket_id, $submission['attachments']);
         }
         
@@ -169,10 +169,11 @@ class Priority_Ticket_Payment_Awesome_Support_Utils {
         $priority_map = array(
             'A' => 134, // Premium → a-ticket (ID 134)
             'B' => 135, // Standard → b-ticket (ID 135)  
-            'C' => 136, // Free → c-ticket (ID 136)
+            'C' => 136, // Basic → c-ticket (ID 136)
+            'D' => 137, // Free → d-ticket (ID 137) - we'll need to create this term
         );
         
-        $priority_term_id = isset($priority_map[$user_priority]) ? $priority_map[$user_priority] : 136; // Default to c-ticket
+        $priority_term_id = isset($priority_map[$user_priority]) ? $priority_map[$user_priority] : 137; // Default to d-ticket for free
         
         // Ensure form_data is an array
         if (!is_array($form_data)) {
@@ -203,12 +204,12 @@ class Priority_Ticket_Payment_Awesome_Support_Utils {
         }
         
         // Log the priority assignment
-        $priority_names = array('A' => 'a-ticket', 'B' => 'b-ticket', 'C' => 'c-ticket');
-        $priority_name = isset($priority_names[$user_priority]) ? $priority_names[$user_priority] : 'c-ticket';
+        $priority_names = array('A' => 'a-ticket', 'B' => 'b-ticket', 'C' => 'c-ticket', 'D' => 'd-ticket');
+        $priority_name = isset($priority_names[$user_priority]) ? $priority_names[$user_priority] : 'd-ticket';
         error_log("Priority Ticket Payment: Set ticket $ticket_id priority to $priority_name (term ID: $priority_term_id) for user priority: $user_priority");
         
         // Set assignee if coach is specified and this is a paid tier
-        if ($user_priority !== 'C' && !empty($form_data['coach'])) {
+        if ($user_priority !== 'C' && $user_priority !== 'D' && !empty($form_data['coach'])) {
             $coach_value = $form_data['coach'];
             
             // Filter out placeholder values
@@ -290,7 +291,8 @@ class Priority_Ticket_Payment_Awesome_Support_Utils {
             $priority_map = array(
                 'A' => 'Premium (a-ticket)',
                 'B' => 'Standard (b-ticket)',
-                'C' => 'Free (c-ticket)'
+                'C' => 'Basic (c-ticket)',
+                'D' => 'Free (d-ticket)'
             );
             $priority_display = isset($priority_map[$form_data['user_priority']]) ? $priority_map[$form_data['user_priority']] : $form_data['user_priority'];
         } elseif (!empty($form_data['ticket_priority'])) {

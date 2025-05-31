@@ -74,6 +74,7 @@ class Priority_Ticket_Payment_Elementor_Integration {
             Priority_Ticket_Payment::get_option('ticket_form_id_a', ''),
             Priority_Ticket_Payment::get_option('ticket_form_id_b', ''),
             Priority_Ticket_Payment::get_option('ticket_form_id_c', ''),
+            Priority_Ticket_Payment::get_option('ticket_form_id_d', ''), // Add free form
         );
         
         // Debug: Log configured forms
@@ -99,10 +100,17 @@ class Priority_Ticket_Payment_Elementor_Integration {
         
         // Determine user priority and corresponding pricing
         $user_id = get_current_user_id() ?: 0;
-        $user_priority = Priority_Ticket_Payment_Elementor_Utils::get_user_ticket_priority($user_id);
+        
+        // Check if this is the free form (Priority D)
+        $free_form_id = Priority_Ticket_Payment::get_option('ticket_form_id_d', '');
+        if ($form_id === $free_form_id) {
+            $user_priority = 'D'; // Free tier for everyone
+        } else {
+            $user_priority = Priority_Ticket_Payment_Elementor_Utils::get_user_ticket_priority($user_id);
+        }
         
         // Debug: Log user details and priority
-        error_log('Priority Ticket Payment: User ID: ' . $user_id . ', Priority: ' . $user_priority);
+        error_log('Priority Ticket Payment: User ID: ' . $user_id . ', Priority: ' . $user_priority . ', Form ID: ' . $form_id);
         
         // Map priority to price and product
         $priority_config = $this->get_priority_config($user_priority, $form_id);
@@ -136,7 +144,7 @@ class Priority_Ticket_Payment_Elementor_Integration {
         
         // Handle attachments if any (only for paid tiers)
         $attachments = array();
-        if ($user_priority !== 'C') {
+        if ($user_priority !== 'C' && $user_priority !== 'D') {
             $attachments = $this->process_attachments($fields);
         }
         
@@ -146,7 +154,7 @@ class Priority_Ticket_Payment_Elementor_Integration {
             'form_data' => $form_data,
             'attachments' => $attachments,
             'price' => $priority_config['price'],
-            'payment_status' => $priority_config['price'] > 0 ? 'pending_payment' : 'completed',
+            'payment_status' => 'pending_payment',
             'token' => $token,
         );
         
@@ -165,7 +173,7 @@ class Priority_Ticket_Payment_Elementor_Integration {
             // Redirect to WooCommerce checkout for paid tiers
             $this->redirect_to_checkout($priority_config, $token, $submission_id, $handler);
         } else {
-            // For free tier, create support ticket immediately
+            // For truly free tier submissions (this should rarely happen now)
             $this->handle_free_tier_submission($submission_id, $token, $handler);
         }
     }
@@ -190,9 +198,16 @@ class Priority_Ticket_Payment_Elementor_Integration {
                 'label' => 'Standard (50€)',
             ),
             'C' => array(
+                'price' => 100.00,
+                'product_id_setting' => 'product_id_c',
+                'form_id_setting' => 'ticket_form_id_c',
+                'tier' => 'basic',
+                'label' => 'Basic (100€)',
+            ),
+            'D' => array(
                 'price' => 0.00,
                 'product_id_setting' => null,
-                'form_id_setting' => 'ticket_form_id_c',
+                'form_id_setting' => 'ticket_form_id_d',
                 'tier' => 'free',
                 'label' => 'Free',
             ),
@@ -213,7 +228,9 @@ class Priority_Ticket_Payment_Elementor_Integration {
     }
     
     /**
-     * Handle free tier submission (no payment required)
+     * Handle submissions that don't require payment (legacy free tier method)
+     * Note: This method is maintained for backwards compatibility but should rarely be used
+     * since all current tiers now require payment.
      */
     private function handle_free_tier_submission($submission_id, $token, $handler) {
         // Update submission status to completed
@@ -236,8 +253,8 @@ class Priority_Ticket_Payment_Elementor_Integration {
         if (wp_doing_ajax() || (defined('DOING_AJAX') && DOING_AJAX)) {
             // For AJAX submissions (Elementor Pro), use proper response data
             $handler->add_response_data('redirect_url', $redirect_url);
-            $handler->add_response_data('success_message', 'Your free support ticket has been submitted successfully! Redirecting...');
-            error_log('Priority Ticket Payment: Free tier - AJAX response data set for redirect');
+            $handler->add_response_data('success_message', 'Your support ticket has been submitted successfully! Redirecting...');
+            error_log('Priority Ticket Payment: Legacy free tier - AJAX response data set for redirect');
             return;
         } else {
             // For non-AJAX submissions, use traditional redirect
@@ -247,7 +264,8 @@ class Priority_Ticket_Payment_Elementor_Integration {
     }
     
     /**
-     * Create support ticket for free tier
+     * Create support ticket directly (legacy method for free tier)
+     * Note: This method is maintained for backwards compatibility
      */
     private function create_free_tier_support_ticket($submission) {
         if (!function_exists('wpas_insert_ticket')) {
@@ -258,8 +276,8 @@ class Priority_Ticket_Payment_Elementor_Integration {
         
         // Prepare ticket data
         $ticket_data = array(
-            'post_title' => isset($form_data['ticket_subject']) ? $form_data['ticket_subject'] : 'Free Tier Support Request',
-            'post_content' => $this->build_ticket_content($form_data, null), // No order for free tier
+            'post_title' => isset($form_data['ticket_subject']) ? $form_data['ticket_subject'] : 'Free Support Request',
+            'post_content' => $this->build_ticket_content($form_data, null), // No order for free submissions
             'post_status' => 'queued',
             'post_author' => $submission['user_id'] ?: 0,
         );
@@ -268,20 +286,32 @@ class Priority_Ticket_Payment_Elementor_Integration {
         $ticket_id = wpas_insert_ticket($ticket_data);
         
         if (is_wp_error($ticket_id)) {
-            error_log('Priority Ticket Payment: Failed to create free tier support ticket - ' . $ticket_id->get_error_message());
+            error_log('Priority Ticket Payment: Failed to create support ticket - ' . $ticket_id->get_error_message());
             return false;
         }
         
-        // Set ticket metadata for free tier
-        update_post_meta($ticket_id, '_wpas_priority', 136); // c-ticket priority for free tier (term ID 136)
+        // Determine priority term ID based on user priority
+        $user_priority = isset($form_data['user_priority']) ? $form_data['user_priority'] : 'D';
+        $priority_term_id = 137; // Default to d-ticket (we'll need to create this term)
+        
+        if ($user_priority === 'D') {
+            $priority_term_id = 137; // d-ticket priority for free tier
+            $tier_name = 'free';
+        } else {
+            $priority_term_id = 136; // c-ticket priority for legacy basic tier
+            $tier_name = 'basic';
+        }
+        
+        // Set ticket metadata
+        update_post_meta($ticket_id, '_wpas_priority', $priority_term_id);
         update_post_meta($ticket_id, '_priority_ticket_submission_id', $submission['id']);
         update_post_meta($ticket_id, '_priority_ticket_token', $submission['token']);
-        update_post_meta($ticket_id, '_priority_ticket_tier', 'free');
+        update_post_meta($ticket_id, '_priority_ticket_tier', $tier_name);
         
         // Store ticket ID in submission
         Priority_Ticket_Payment_Database::update_ticket_id($submission['id'], $ticket_id);
         
-        error_log(sprintf('Priority Ticket Payment: Created free tier support ticket %d for submission %d with c-ticket priority (ID: 136)', $ticket_id, $submission['id']));
+        error_log(sprintf('Priority Ticket Payment: Created support ticket %d for submission %d with priority %s (ID: %d)', $ticket_id, $submission['id'], $user_priority, $priority_term_id));
         
         return $ticket_id;
     }
@@ -422,6 +452,120 @@ class Priority_Ticket_Payment_Elementor_Integration {
         $description = implode("\n\n", $description_parts);
         
         return !empty($description) ? $description : 'Priority support request submitted via Elementor form.';
+    }
+    
+    /**
+     * Build ticket content from form data and order
+     */
+    private function build_ticket_content($form_data, $order = null) {
+        // Ensure form_data is an array
+        if (!is_array($form_data)) {
+            error_log('Priority Ticket Payment: form_data is not an array in build_ticket_content, using empty array');
+            $form_data = array();
+        }
+        
+        $content_parts = array();
+        
+        // Priority/urgency indicator - use the actual user priority tier if available
+        $priority_display = 'Free (d-ticket)'; // Default for free tier
+        if (!empty($form_data['user_priority'])) {
+            $priority_map = array(
+                'A' => 'Premium (a-ticket)',
+                'B' => 'Standard (b-ticket)', 
+                'C' => 'Basic (c-ticket)',
+                'D' => 'Free (d-ticket)'
+            );
+            $priority_display = isset($priority_map[$form_data['user_priority']]) ? $priority_map[$form_data['user_priority']] : $form_data['user_priority'];
+        } elseif (!empty($form_data['ticket_priority'])) {
+            $priority_display = ucfirst($form_data['ticket_priority']);
+        }
+        $content_parts[] = '**Priority Level:** ' . $priority_display;
+        
+        // Main message/description
+        if (!empty($form_data['ticket_description'])) {
+            $content_parts[] = '**Description:**' . "\n" . $form_data['ticket_description'];
+        } elseif (!empty($form_data['message'])) {
+            $content_parts[] = '**Description:**' . "\n" . $form_data['message'];
+        }
+        
+        // Additional details
+        if (!empty($form_data['date_note'])) {
+            $content_parts[] = '**Preferred Date/Note:** ' . $form_data['date_note'];
+        }
+        
+        // Handle coach field - filter out placeholder values
+        if (!empty($form_data['coach'])) {
+            $coach_value = $form_data['coach'];
+            // Filter out common placeholder values
+            $placeholders = array(
+                '– Wer ist Ihr Coach? –',
+                'Select a coach',
+                'Choose coach',
+                'Please select',
+                '---',
+                '--',
+                'Select...'
+            );
+            
+            if (!in_array($coach_value, $placeholders) && trim($coach_value) !== '') {
+                $content_parts[] = '**Preferred Coach:** ' . $coach_value;
+            }
+        }
+        
+        if (!empty($form_data['website'])) {
+            $content_parts[] = '**Website:** ' . $form_data['website'];
+        }
+        
+        // Contact information - try multiple field variations
+        $contact_info = array();
+        
+        // Email - try multiple variations
+        $email_fields = array('contact_email', 'email', 'e_mail', 'your_email', 'client_email');
+        foreach ($email_fields as $email_field) {
+            if (!empty($form_data[$email_field])) {
+                $contact_info[] = 'Email: ' . $form_data[$email_field];
+                break;
+            }
+        }
+        
+        // Phone - try multiple variations
+        $phone_fields = array('contact_phone', 'phone', 'telephone', 'phone_number', 'contact_number');
+        foreach ($phone_fields as $phone_field) {
+            if (!empty($form_data[$phone_field])) {
+                $contact_info[] = 'Phone: ' . $form_data[$phone_field];
+                break;
+            }
+        }
+        
+        // Name - try multiple variations
+        $name_fields = array('name', 'full_name', 'client_name', 'contact_name', 'your_name');
+        foreach ($name_fields as $name_field) {
+            if (!empty($form_data[$name_field])) {
+                $contact_info[] = 'Name: ' . $form_data[$name_field];
+                break;
+            }
+        }
+        
+        if (!empty($contact_info)) {
+            $content_parts[] = '**Contact Information:**' . "\n" . implode("\n", $contact_info);
+        }
+        
+        // Order information (only if order exists - for paid tiers)
+        if ($order) {
+            $order_info = array();
+            $order_info[] = 'Order ID: #' . $order->get_id();
+            $order_info[] = 'Order Date: ' . $order->get_date_created()->format('Y-m-d H:i:s');
+            $order_info[] = 'Order Total: ' . $order->get_formatted_order_total();
+            $order_info[] = 'Payment Method: ' . $order->get_payment_method_title();
+            
+            $content_parts[] = '**Order Information:**' . "\n" . implode("\n", $order_info);
+        } else {
+            // For submissions without order (this should rarely happen now that all tiers are paid)
+            $content_parts[] = '**Submission Type:** Support Request';
+            $content_parts[] = '**Submitted:** ' . current_time('Y-m-d H:i:s');
+        }
+        
+        return implode("\n\n", $content_parts);
     }
     
     /**
@@ -1034,8 +1178,11 @@ class Priority_Ticket_Payment_Elementor_Integration {
                 $price = 50;
                 break;
             case 'C':
+                $price = 100; // Now also 100 for Priority C
+                break;
+            case 'D':
             default:
-                $price = 0;
+                $price = 0; // Free for Priority D
                 break;
         }
         
@@ -1048,7 +1195,7 @@ class Priority_Ticket_Payment_Elementor_Integration {
             'form_data' => $form_data,
             'attachments' => array(), // File attachments to be processed separately
             'price' => $price,
-            'payment_status' => $price > 0 ? 'pending_payment' : 'completed',
+            'payment_status' => 'pending_payment', // All tiers now require payment
             'token' => $token,
         );
         
@@ -1060,13 +1207,13 @@ class Priority_Ticket_Payment_Elementor_Integration {
             wp_die(__('Failed to process form submission. Please try again.', 'priority-ticket-payment'));
         }
         
-        // Handle free tier (Priority C)
-        if ($priority === 'C' || $price == 0) {
+        // Handle free tier (Priority D)
+        if ($priority === 'D' || $price == 0) {
             // For free tier, create ticket immediately if Awesome Support is enabled
             if (Priority_Ticket_Payment::get_option('enable_awesome_support_integration', 'yes') === 'yes') {
                 $submission = Priority_Ticket_Payment_Database::get_submission($submission_id);
                 if ($submission) {
-                    // Create free tier ticket (this will be handled by the existing method in elementor integration)
+                    // Create free tier ticket
                     $instance = new self();
                     $instance->create_free_tier_support_ticket($submission);
                 }
@@ -1078,9 +1225,15 @@ class Priority_Ticket_Payment_Elementor_Integration {
             exit;
         }
         
-        // Handle paid tiers (A and B)
+        // All other tiers require payment, so proceed to checkout
         // Get product ID from plugin settings
-        $product_id = ($priority === 'B' ? Priority_Ticket_Payment::get_option('product_id_b', 0) : Priority_Ticket_Payment::get_option('product_id_a', 0));
+        if ($priority === 'A') {
+            $product_id = Priority_Ticket_Payment::get_option('product_id_a', 0);
+        } elseif ($priority === 'B') {
+            $product_id = Priority_Ticket_Payment::get_option('product_id_b', 0);
+        } else { // Priority C
+            $product_id = Priority_Ticket_Payment::get_option('product_id_c', 0);
+        }
         
         // Log the chosen product ID
         error_log('Priority Ticket Payment: Static handler - Chosen product ID: ' . $product_id . ' (Priority: ' . $priority . ')');

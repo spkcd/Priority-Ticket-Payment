@@ -78,6 +78,7 @@ class Priority_Ticket_Payment_Frontend {
             'A' => 'ticket_form_id_a',
             'B' => 'ticket_form_id_b',
             'C' => 'ticket_form_id_c',
+            'D' => 'ticket_form_id_d',
         );
         
         $form_id = '';
@@ -90,7 +91,8 @@ class Priority_Ticket_Payment_Frontend {
             $priority_labels = array(
                 'A' => __('Premium (100€)', 'priority-ticket-payment'),
                 'B' => __('Standard (50€)', 'priority-ticket-payment'),
-                'C' => __('Free', 'priority-ticket-payment'),
+                'C' => __('Basic (100€)', 'priority-ticket-payment'),
+                'D' => __('Free', 'priority-ticket-payment'),
             );
             
             $priority_label = isset($priority_labels[$user_priority]) ? $priority_labels[$user_priority] : $user_priority;
@@ -186,8 +188,8 @@ class Priority_Ticket_Payment_Frontend {
         </div>
         
         <?php
-        // Add special handling for Ticket C (Free tier)
-        if ($user_priority === 'C') {
+        // Add special handling for Priority D (Free tier)
+        if ($user_priority === 'D') {
             ?>
             <script type="text/javascript">
             document.addEventListener('DOMContentLoaded', function() {
