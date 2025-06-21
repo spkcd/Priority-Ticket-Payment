@@ -22,6 +22,9 @@ class Priority_Ticket_Payment_Admin {
         add_action('wp_ajax_priority_ticket_payment_get_cleanup_stats', array($this, 'ajax_get_cleanup_stats'));
         add_action('wp_ajax_priority_ticket_payment_create_ticket', array($this, 'ajax_create_ticket'));
         add_action('wp_ajax_priority_ticket_payment_view_submission', array($this, 'ajax_view_submission'));
+        
+        // Add settings validation
+        add_filter('pre_update_option_priority_ticket_payment_settings', array($this, 'validate_settings'), 10, 2);
     }
     
     /**
@@ -52,6 +55,14 @@ class Priority_Ticket_Payment_Admin {
             'priority_ticket_payment_form_mapping',
             __('Form Configuration', 'priority-ticket-payment'),
             array($this, 'form_mapping_settings_callback'),
+            'priority_ticket_payment_settings'
+        );
+        
+        // Payment Settings
+        add_settings_section(
+            'priority_ticket_payment_payment',
+            __('Payment Settings', 'priority-ticket-payment'),
+            array($this, 'payment_settings_callback'),
             'priority_ticket_payment_settings'
         );
         
@@ -98,7 +109,7 @@ class Priority_Ticket_Payment_Admin {
             // Form Configuration - Core settings for the priority system
             array(
                 'id' => 'ticket_form_id_a',
-                'title' => __('Premium Form ID (100€)', 'priority-ticket-payment'),
+                'title' => __('Coaching Client Form ID (Free)', 'priority-ticket-payment'),
                 'callback' => 'render_text_field',
                 'section' => 'priority_ticket_payment_form_mapping',
                 'args' => array('type' => 'text', 'placeholder' => 'Enter Elementor Form ID')
@@ -112,21 +123,34 @@ class Priority_Ticket_Payment_Admin {
             ),
             array(
                 'id' => 'ticket_form_id_c',
-                'title' => __('Free Form ID (0€)', 'priority-ticket-payment'),
+                'title' => __('Basic Form ID (100€)', 'priority-ticket-payment'),
                 'callback' => 'render_text_field',
                 'section' => 'priority_ticket_payment_form_mapping',
                 'args' => array('type' => 'text', 'placeholder' => 'Enter Elementor Form ID')
             ),
+
             array(
-                'id' => 'product_id_a',
-                'title' => __('Premium Product ID (100€)', 'priority-ticket-payment'),
+                'id' => 'additional_form_ids',
+                'title' => __('Additional Form IDs', 'priority-ticket-payment'),
+                'callback' => 'render_text_field',
+                'section' => 'priority_ticket_payment_form_mapping',
+                'args' => array(
+                    'type' => 'text', 
+                    'placeholder' => 'f755476, form123, another-form',
+                    'description' => __('Comma-separated list of additional Elementor Form IDs that should work with priority tickets. User priority will be determined automatically based on their account.', 'priority-ticket-payment')
+                )
+            ),
+
+            array(
+                'id' => 'product_id_b',
+                'title' => __('Standard Product ID (50€)', 'priority-ticket-payment'),
                 'callback' => 'render_text_field',
                 'section' => 'priority_ticket_payment_form_mapping',
                 'args' => array('type' => 'number', 'min' => '1', 'placeholder' => 'WooCommerce Product ID')
             ),
             array(
-                'id' => 'product_id_b',
-                'title' => __('Standard Product ID (50€)', 'priority-ticket-payment'),
+                'id' => 'product_id_c',
+                'title' => __('Basic Product ID (100€)', 'priority-ticket-payment'),
                 'callback' => 'render_text_field',
                 'section' => 'priority_ticket_payment_form_mapping',
                 'args' => array('type' => 'number', 'min' => '1', 'placeholder' => 'WooCommerce Product ID')
@@ -143,6 +167,66 @@ class Priority_Ticket_Payment_Admin {
                 )
             ),
             
+            // Payment Settings - Payment and checkout behavior
+            array(
+                'id' => 'custom_thank_you_page_url',
+                'title' => __('Custom Thank You Page URL', 'priority-ticket-payment'),
+                'callback' => 'render_text_field',
+                'section' => 'priority_ticket_payment_payment',
+                'args' => array(
+                    'type' => 'url', 
+                    'placeholder' => 'https://example.com/thank-you',
+                    'description' => __('Users will be redirected to this page after a paid ticket is completed. Leave blank to use the default WooCommerce thank-you page.', 'priority-ticket-payment'),
+                    'tooltip' => __('Use a full URL like https://example.com/thank-you to send users to a custom page after purchase.', 'priority-ticket-payment')
+                )
+            ),
+            array(
+                'id' => 'priority_ticket_admin_email',
+                'title' => __('Admin Notification Email', 'priority-ticket-payment'),
+                'callback' => 'render_text_field',
+                'section' => 'priority_ticket_payment_payment',
+                'args' => array(
+                    'type' => 'email', 
+                    'placeholder' => 'admin@example.com',
+                    'description' => __('Address where new ticket alerts are sent. Leave blank to use WordPress admin email.', 'priority-ticket-payment')
+                )
+            ),
+            
+            // Client Reply Notification Settings
+            array(
+                'id' => 'send_reply_notifications',
+                'title' => __('Send Reply Notifications to Clients', 'priority-ticket-payment'),
+                'callback' => 'render_checkbox_field',
+                'section' => 'priority_ticket_payment_payment',
+                'args' => array(
+                    'description' => __('When enabled, clients receive an email notification when coaches reply to their tickets.', 'priority-ticket-payment')
+                )
+            ),
+            
+            array(
+                'id' => 'reply_notification_subject',
+                'title' => __('Reply Notification Subject', 'priority-ticket-payment'),
+                'callback' => 'render_text_field',
+                'section' => 'priority_ticket_payment_payment',
+                'args' => array(
+                    'type' => 'text',
+                    'placeholder' => 'Antwort auf Ihr Coaching Ticket',
+                    'description' => __('Email subject line when clients receive reply notifications. Leave blank for default.', 'priority-ticket-payment')
+                )
+            ),
+            
+            array(
+                'id' => 'reply_notification_template',
+                'title' => __('Reply Notification Template', 'priority-ticket-payment'),
+                'callback' => 'render_textarea_field',
+                'section' => 'priority_ticket_payment_payment',
+                'args' => array(
+                    'rows' => 8,
+                    'placeholder' => 'Leave blank for default template...',
+                    'description' => __('Custom HTML email template for reply notifications. Use [customer_name] and [ticket_link] as placeholders. Leave blank for default.', 'priority-ticket-payment')
+                )
+            ),
+            
             // System Settings - Essential maintenance settings
             array(
                 'id' => 'max_file_size',
@@ -150,6 +234,19 @@ class Priority_Ticket_Payment_Admin {
                 'callback' => 'render_text_field',
                 'section' => 'priority_ticket_payment_system',
                 'args' => array('type' => 'number', 'min' => '1', 'max' => '50', 'placeholder' => '10')
+            ),
+            array(
+                'id' => 'max_attachments',
+                'title' => __('Maximum Number of Attachments', 'priority-ticket-payment'),
+                'callback' => 'render_text_field',
+                'section' => 'priority_ticket_payment_system',
+                'args' => array(
+                    'type' => 'number', 
+                    'min' => '1', 
+                    'max' => '5', 
+                    'placeholder' => '3',
+                    'tooltip' => __('Only applies to paid ticket forms (A and B tiers). Users can upload up to this number of files.', 'priority-ticket-payment')
+                )
             ),
             array(
                 'id' => 'cleanup_enabled',
@@ -183,12 +280,16 @@ class Priority_Ticket_Payment_Admin {
         echo '<div style="background: #f0f8ff; padding: 15px; border-left: 4px solid #0073aa; margin-bottom: 20px;">';
         echo '<h4 style="margin-top: 0;">🎯 How Priority Detection Works:</h4>';
         echo '<ol style="margin: 0;">';
-        echo '<li><strong>Premium (100€):</strong> Users who have <em>any</em> completed/processing WooCommerce orders (but no coaching products)</li>';
-        echo '<li><strong>Standard (50€):</strong> Users who purchased <em>coaching products</em> (specified below)</li>';
-        echo '<li><strong>Free (0€):</strong> Guest users or users with no qualifying purchases</li>';
+        echo '<li><strong>Coaching Client (Free):</strong> Users who purchased <em>coaching products</em> (specified below) - FREE TICKETS</li>';
+        echo '<li><strong>Standard (50€):</strong> Users who have <em>any</em> completed/processing WooCommerce orders (but no coaching products)</li>';
+        echo '<li><strong>Basic (100€):</strong> Guest users or users with no qualifying purchases</li>';
         echo '</ol>';
-        echo '<p style="margin-bottom: 0;"><strong>Note:</strong> If a user has both regular orders AND coaching products, they get Standard (50€) pricing.</p>';
+        echo '<p style="margin-bottom: 0;"><strong>Note:</strong> Coaching clients always get free tickets (Ticket A). Regular customers pay based on their order history.</p>';
         echo '</div>';
+    }
+    
+    public function payment_settings_callback() {
+        echo '<p>' . __('Configure payment and checkout behavior settings.', 'priority-ticket-payment') . '</p>';
     }
     
     public function system_settings_callback() {
@@ -221,11 +322,11 @@ class Priority_Ticket_Payment_Admin {
         );
         
         // Add helper text for form mapping fields
-        if (in_array($id, array('ticket_form_id_a', 'ticket_form_id_b', 'ticket_form_id_c'))) {
+        if (in_array($id, array('ticket_form_id_a', 'ticket_form_id_b', 'ticket_form_id_c', 'ticket_form_id_d'))) {
             echo '<p class="description">' . __('Find this in Elementor Editor → Form Settings → Advanced → Form ID', 'priority-ticket-payment') . '</p>';
         }
         
-        if (in_array($id, array('product_id_a', 'product_id_b'))) {
+        if (in_array($id, array('product_id_a', 'product_id_b', 'product_id_c'))) {
             echo '<p class="description">' . __('WooCommerce product for this tier. Leave empty to auto-create.', 'priority-ticket-payment') . '</p>';
         }
         
@@ -236,6 +337,42 @@ class Priority_Ticket_Payment_Admin {
         
         if ($id === 'max_file_size') {
             echo '<p class="description">' . __('Maximum file size for user uploads (1-50 MB recommended)', 'priority-ticket-payment') . '</p>';
+        }
+        
+        if ($id === 'max_attachments') {
+            $description = __('Default: 3 files per submission', 'priority-ticket-payment');
+            $tooltip = isset($args['tooltip']) ? $args['tooltip'] : '';
+            
+            echo '<p class="description">' . esc_html($description);
+            
+            if ($tooltip) {
+                echo ' <span class="dashicons dashicons-info" style="font-size: 16px; vertical-align: middle; color: #72777c; cursor: help;" title="' . esc_attr($tooltip) . '"></span>';
+            }
+            
+            echo '</p>';
+        }
+        
+        if ($id === 'custom_thank_you_page_url') {
+            $description = isset($args['description']) ? $args['description'] : '';
+            $tooltip = isset($args['tooltip']) ? $args['tooltip'] : '';
+            
+            echo '<p class="description">' . esc_html($description);
+            
+            if ($tooltip) {
+                echo ' <span class="dashicons dashicons-info" style="font-size: 16px; vertical-align: middle; color: #72777c; cursor: help;" title="' . esc_attr($tooltip) . '"></span>';
+            }
+            
+            echo '</p>';
+        }
+        
+        if ($id === 'priority_ticket_admin_email') {
+            $description = isset($args['description']) ? $args['description'] : '';
+            echo '<p class="description">' . esc_html($description) . '</p>';
+        }
+        
+        if ($id === 'reply_notification_subject') {
+            $description = isset($args['description']) ? $args['description'] : '';
+            echo '<p class="description">' . esc_html($description) . '</p>';
         }
     }
     
@@ -250,6 +387,35 @@ class Priority_Ticket_Payment_Admin {
             esc_attr($id),
             checked('yes', $value, false)
         );
+        
+        // Add description for notification settings
+        if ($id === 'send_reply_notifications') {
+            $description = isset($args['description']) ? $args['description'] : '';
+            echo '<p class="description">' . esc_html($description) . '</p>';
+        }
+    }
+    
+    public function render_textarea_field($args) {
+        $id = $args['id'];
+        $settings = get_option('priority_ticket_payment_settings', array());
+        $value = isset($settings[$id]) ? $settings[$id] : '';
+        $rows = isset($args['rows']) ? intval($args['rows']) : 5;
+        $placeholder = isset($args['placeholder']) ? $args['placeholder'] : '';
+        
+        printf(
+            '<textarea id="%s" name="priority_ticket_payment_settings[%s]" rows="%d" class="large-text" placeholder="%s">%s</textarea>',
+            esc_attr($id),
+            esc_attr($id),
+            $rows,
+            esc_attr($placeholder),
+            esc_textarea($value)
+        );
+        
+        if ($id === 'reply_notification_template') {
+            $description = isset($args['description']) ? $args['description'] : '';
+            echo '<p class="description">' . esc_html($description) . '</p>';
+            echo '<p class="description"><strong>Available placeholders:</strong> [customer_name], [ticket_link]</p>';
+        }
     }
     
     /**
@@ -344,6 +510,7 @@ class Priority_Ticket_Payment_Admin {
                     <tr>
                         <th scope="col" class="manage-column column-id"><?php _e('ID', 'priority-ticket-payment'); ?></th>
                         <th scope="col" class="manage-column column-user"><?php _e('User', 'priority-ticket-payment'); ?></th>
+                        <th scope="col" class="manage-column column-subject"><?php _e('Subject', 'priority-ticket-payment'); ?></th>
                         <th scope="col" class="manage-column column-price"><?php _e('Price', 'priority-ticket-payment'); ?></th>
                         <th scope="col" class="manage-column column-status"><?php _e('Status', 'priority-ticket-payment'); ?></th>
                         <th scope="col" class="manage-column column-date"><?php _e('Date', 'priority-ticket-payment'); ?></th>
@@ -353,7 +520,7 @@ class Priority_Ticket_Payment_Admin {
                 <tbody>
                     <?php if (empty($submissions)) : ?>
                         <tr>
-                            <td colspan="6"><?php _e('No submissions found.', 'priority-ticket-payment'); ?></td>
+                            <td colspan="7"><?php _e('No submissions found.', 'priority-ticket-payment'); ?></td>
                         </tr>
                     <?php else : ?>
                         <?php foreach ($submissions as $submission) : ?>
@@ -365,6 +532,27 @@ class Priority_Ticket_Payment_Admin {
                                     echo $user ? esc_html($user->display_name) : __('Unknown User', 'priority-ticket-payment');
                                     ?>
                                 </td>
+                                                <td>
+                    <?php
+                    // Extract subject from form_data
+                    $form_data = $submission['form_data'];
+                    if (is_string($form_data)) {
+                        $form_data = unserialize($form_data);
+                    }
+                    
+                    $subject = '';
+                    if (is_array($form_data) && isset($form_data['subject']) && !empty(trim($form_data['subject']))) {
+                        $subject = sanitize_text_field(trim($form_data['subject']));
+                    }
+                    
+                    if (empty($subject)) {
+                        echo '<span title="' . esc_attr(__('This field is submitted by the user via the Elementor form and used as the ticket title.', 'priority-ticket-payment')) . '" style="font-style: italic; color: #666;">' . esc_html(__('(No subject)', 'priority-ticket-payment')) . '</span>';
+                    } else {
+                        $display_subject = strlen($subject) > 40 ? substr($subject, 0, 40) . '...' : $subject;
+                        echo '<span title="' . esc_attr($subject . ' - ' . __('This field is submitted by the user via the Elementor form and used as the ticket title.', 'priority-ticket-payment')) . '">' . esc_html($display_subject) . '</span>';
+                    }
+                    ?>
+                </td>
                                 <td><?php echo esc_html(Priority_Ticket_Payment::get_option('currency_symbol', '$') . number_format($submission['price'], 2)); ?></td>
                                 <td>
                                     <span class="status-badge status-<?php echo esc_attr($submission['payment_status']); ?>">
@@ -409,6 +597,30 @@ class Priority_Ticket_Payment_Admin {
                 </div>
             <?php endif; ?>
         </div>
+        
+        <style>
+        .column-subject {
+            width: 25%;
+        }
+        .column-id {
+            width: 8%;
+        }
+        .column-user {
+            width: 15%;
+        }
+        .column-price {
+            width: 10%;
+        }
+        .column-status {
+            width: 12%;
+        }
+        .column-date {
+            width: 15%;
+        }
+        .column-actions {
+            width: 15%;
+        }
+        </style>
         
         <script>
         jQuery(document).ready(function($) {
@@ -768,5 +980,107 @@ class Priority_Ticket_Payment_Admin {
         );
         
         wp_send_json_success($formatted_data);
+    }
+    
+    /**
+     * Validate settings before saving
+     */
+    public function validate_settings($new_value, $old_value) {
+        // Validate and sanitize custom thank you page URL
+        if (!empty($new_value['custom_thank_you_page_url'])) {
+            // Sanitize URL using esc_url_raw()
+            $sanitized_url = esc_url_raw($new_value['custom_thank_you_page_url']);
+            
+            if (!Priority_Ticket_Payment_Payment_Handler::validate_thank_you_url($sanitized_url)) {
+                add_settings_error(
+                    'priority_ticket_payment_settings',
+                    'invalid_thank_you_url',
+                    __('The custom thank you page URL is invalid. Please enter a valid URL or leave it empty to use the default WooCommerce thank-you page.', 'priority-ticket-payment'),
+                    'error'
+                );
+                
+                // Keep the old value for this field
+                $new_value['custom_thank_you_page_url'] = isset($old_value['custom_thank_you_page_url']) ? $old_value['custom_thank_you_page_url'] : '';
+            } else {
+                // Use the sanitized URL
+                $new_value['custom_thank_you_page_url'] = $sanitized_url;
+            }
+        }
+        
+        // Validate max file size
+        if (!empty($new_value['max_file_size'])) {
+            $max_file_size = intval($new_value['max_file_size']);
+            if ($max_file_size < 1 || $max_file_size > 100) {
+                add_settings_error(
+                    'priority_ticket_payment_settings',
+                    'invalid_max_file_size',
+                    __('Maximum file size must be between 1 and 100 MB.', 'priority-ticket-payment'),
+                    'error'
+                );
+                
+                // Keep the old value for this field
+                $new_value['max_file_size'] = isset($old_value['max_file_size']) ? $old_value['max_file_size'] : '10';
+            }
+        }
+        
+        // Validate max attachments
+        if (!empty($new_value['max_attachments'])) {
+            $max_attachments = intval($new_value['max_attachments']);
+            if ($max_attachments < 1 || $max_attachments > 5) {
+                add_settings_error(
+                    'priority_ticket_payment_settings',
+                    'invalid_max_attachments',
+                    __('Maximum number of attachments must be between 1 and 5 files.', 'priority-ticket-payment'),
+                    'error'
+                );
+                
+                // Keep the old value for this field
+                $new_value['max_attachments'] = isset($old_value['max_attachments']) ? $old_value['max_attachments'] : '3';
+            }
+        }
+        
+        // Validate admin notification email
+        if (!empty($new_value['priority_ticket_admin_email'])) {
+            $admin_email = sanitize_email($new_value['priority_ticket_admin_email']);
+            
+            if (!is_email($admin_email)) {
+                add_settings_error(
+                    'priority_ticket_payment_settings',
+                    'invalid_admin_email',
+                    __('The admin notification email address is invalid. Please enter a valid email address or leave it empty to use the WordPress admin email.', 'priority-ticket-payment'),
+                    'error'
+                );
+                
+                // Keep the old value for this field
+                $new_value['priority_ticket_admin_email'] = isset($old_value['priority_ticket_admin_email']) ? $old_value['priority_ticket_admin_email'] : '';
+            } else {
+                // Use the sanitized email
+                $new_value['priority_ticket_admin_email'] = $admin_email;
+            }
+        }
+        
+        // Validate product IDs
+        $product_fields = array('product_id_a', 'product_id_b', 'product_id_c');
+        foreach ($product_fields as $field) {
+            if (!empty($new_value[$field])) {
+                $product_id = intval($new_value[$field]);
+                if ($product_id > 0) {
+                    $product = get_post($product_id);
+                    if (!$product || $product->post_type !== 'product') {
+                        add_settings_error(
+                            'priority_ticket_payment_settings',
+                            'invalid_product_id',
+                            sprintf(__('Product ID %d does not exist or is not a valid WooCommerce product.', 'priority-ticket-payment'), $product_id),
+                            'error'
+                        );
+                        
+                        // Keep the old value for this field
+                        $new_value[$field] = isset($old_value[$field]) ? $old_value[$field] : '';
+                    }
+                }
+            }
+        }
+        
+        return $new_value;
     }
 } 

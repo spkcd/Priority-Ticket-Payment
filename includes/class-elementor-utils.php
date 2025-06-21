@@ -340,7 +340,7 @@ class Priority_Ticket_Payment_Elementor_Utils {
      * Get user ticket priority based on purchase history and coaching status
      *
      * @param int $user_id WordPress user ID
-     * @return string 'A' (100€), 'B' (50€), or 'C' (Free)
+     * @return string 'A' (Free for coaching clients), 'B' (50€), or 'C' (100€)
      */
     public static function get_user_ticket_priority($user_id) {
         if (!$user_id) return 'C';
@@ -348,18 +348,21 @@ class Priority_Ticket_Payment_Elementor_Utils {
         // Get coaching product IDs from settings
         $coaching_ids = explode(',', Priority_Ticket_Payment::get_option('coaching_product_ids', ''));
 
+        // Check if user has purchased coaching products -> Ticket A (Free)
         foreach ($coaching_ids as $pid) {
             if (wc_customer_bought_product('', $user_id, trim($pid))) {
-                return 'B';
+                return 'A';
             }
         }
 
+        // Check if user has any completed/processing orders -> Ticket B (50€)
         $orders = wc_get_orders([
             'customer_id' => $user_id,
             'status' => ['completed', 'processing'],
             'limit' => 1,
         ]);
 
-        return $orders ? 'A' : 'C';
+        // Users with orders get Ticket B (50€), users without orders get Ticket C (100€)
+        return $orders ? 'B' : 'C';
     }
 } 

@@ -3,7 +3,7 @@
  * Plugin Name: Priority Ticket Payment
  * Plugin URI: https://sparkwebstudio.com/priority-ticket-payment
  * Description: A comprehensive WordPress plugin for managing priority ticket submissions with payment integration for WooCommerce and Awesome Support. Supports Elementor Pro forms with automatic ticket creation, priority assignment, and agent management.
- * Version: 1.1.0
+ * Version: 1.5.0
  * Author: SPARKWEBStudio
  * Author URI: https://sparkwebstudio.com/
  * Text Domain: priority-ticket-payment
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('PRIORITY_TICKET_PAYMENT_VERSION', '1.1.0');
+define('PRIORITY_TICKET_PAYMENT_VERSION', '1.5.0');
 define('PRIORITY_TICKET_PAYMENT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('PRIORITY_TICKET_PAYMENT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('PRIORITY_TICKET_PAYMENT_PLUGIN_FILE', __FILE__);
@@ -100,6 +100,9 @@ class Priority_Ticket_Payment {
         // Initialize components here
         $this->load_dependencies();
         
+        // Check for version updates
+        $this->check_version();
+        
         // Check for WooCommerce integration
         if (class_exists('WooCommerce')) {
             $this->init_woocommerce_integration();
@@ -109,6 +112,114 @@ class Priority_Ticket_Payment {
         if (class_exists('Awesome_Support')) {
             $this->init_awesome_support_integration();
         }
+    }
+    
+    /**
+     * Check for plugin version updates and run upgrade routines if needed
+     */
+    private function check_version() {
+        $installed_version = get_option('priority_ticket_payment_version', '1.0.0');
+        $current_version = PRIORITY_TICKET_PAYMENT_VERSION;
+        
+        if (version_compare($installed_version, $current_version, '<')) {
+            // Run upgrade routines
+            $this->upgrade($installed_version, $current_version);
+            
+            // Update stored version
+            update_option('priority_ticket_payment_version', $current_version);
+            
+            error_log('Priority Ticket Payment: Upgraded from version ' . $installed_version . ' to ' . $current_version);
+        }
+    }
+    
+    /**
+     * Handle plugin upgrades
+     */
+    private function upgrade($from_version, $to_version) {
+        // Version-specific upgrade routines
+        
+        if (version_compare($from_version, '1.2.0', '<')) {
+            // Add new default options for version 1.2.0
+            $default_options = array(
+                'custom_thank_you_page_url' => '',
+                'max_attachments' => '3',
+            );
+            
+            $current_options = get_option('priority_ticket_payment_settings', array());
+            
+            // Merge new defaults with existing options
+            $updated_options = array_merge($current_options, $default_options);
+            update_option('priority_ticket_payment_settings', $updated_options);
+            
+            error_log('Priority Ticket Payment: Added new default options for version 1.2.0');
+        }
+        
+        if (version_compare($from_version, '1.2.1', '<')) {
+            // Add new default options for version 1.2.1
+            $default_options = array(
+                'priority_ticket_admin_email' => '',
+                'send_reply_notifications' => 'yes',
+                'reply_notification_subject' => '',
+                'reply_notification_template' => '',
+            );
+            
+            $current_options = get_option('priority_ticket_payment_settings', array());
+            
+            // Merge new defaults with existing options (don't overwrite existing values)
+            foreach ($default_options as $key => $value) {
+                if (!isset($current_options[$key])) {
+                    $current_options[$key] = $value;
+                }
+            }
+            
+            update_option('priority_ticket_payment_settings', $current_options);
+            
+            error_log('Priority Ticket Payment: Added reply notification settings for version 1.2.1');
+        }
+        
+        if (version_compare($from_version, '1.2.1', '<')) {
+            // Version 1.2.1 improvements - no settings changes needed
+            error_log('Priority Ticket Payment: Applied version 1.2.1 bug fixes and improvements');
+        }
+        
+        if (version_compare($from_version, '1.2.2', '<')) {
+            // Fix custom thank you URL key mismatch (migrate from old key to new key)
+            $current_options = get_option('priority_ticket_payment_settings', array());
+            if (isset($current_options['custom_thank_you_url']) && !isset($current_options['custom_thank_you_page_url'])) {
+                $current_options['custom_thank_you_page_url'] = $current_options['custom_thank_you_url'];
+                unset($current_options['custom_thank_you_url']);
+                update_option('priority_ticket_payment_settings', $current_options);
+                error_log('Priority Ticket Payment: Migrated custom_thank_you_url to custom_thank_you_page_url');
+            }
+            
+            error_log('Priority Ticket Payment: Applied version 1.2.2 custom thank you page fixes and improvements');
+        }
+        
+        if (version_compare($from_version, '1.4.0', '<')) {
+            // Fix file access permissions for version 1.4.0
+            $this->fix_upload_directory_permissions();
+            error_log('Priority Ticket Payment: Fixed upload directory permissions for version 1.4.0');
+        }
+        
+        if (version_compare($from_version, '1.2.5', '<')) {
+            // Add new default option for version 1.2.5
+            $current_options = get_option('priority_ticket_payment_settings', array());
+            if (!isset($current_options['additional_form_ids'])) {
+                $current_options['additional_form_ids'] = '';
+                update_option('priority_ticket_payment_settings', $current_options);
+                error_log('Priority Ticket Payment: Added additional_form_ids setting for version 1.2.5');
+            }
+            
+            error_log('Priority Ticket Payment: Applied version 1.2.5 additional form IDs support');
+        }
+        
+        // Clear any caches after upgrade
+        if (function_exists('wp_cache_flush')) {
+            wp_cache_flush();
+        }
+        
+        // Trigger action for extensions
+        do_action('priority_ticket_payment_upgraded', $from_version, $to_version);
     }
     
     /**
@@ -126,14 +237,17 @@ class Priority_Ticket_Payment {
         require_once PRIORITY_TICKET_PAYMENT_PLUGIN_PATH . 'includes/class-admin.php';
         require_once PRIORITY_TICKET_PAYMENT_PLUGIN_PATH . 'includes/class-frontend.php';
         require_once PRIORITY_TICKET_PAYMENT_PLUGIN_PATH . 'includes/class-ajax.php';
+        require_once PRIORITY_TICKET_PAYMENT_PLUGIN_PATH . 'includes/class-file-handler.php';
         require_once PRIORITY_TICKET_PAYMENT_PLUGIN_PATH . 'includes/class-elementor-integration.php';
         require_once PRIORITY_TICKET_PAYMENT_PLUGIN_PATH . 'includes/class-elementor-utils.php';
         require_once PRIORITY_TICKET_PAYMENT_PLUGIN_PATH . 'includes/class-awesome-support-utils.php';
+        require_once PRIORITY_TICKET_PAYMENT_PLUGIN_PATH . 'includes/class-payment-handler.php';
         
         // Instantiate classes
         new Priority_Ticket_Payment_Admin();
         new Priority_Ticket_Payment_Frontend();
         new Priority_Ticket_Payment_Ajax();
+        new Priority_Ticket_Payment_Payment_Handler();
         
         // Only load Elementor integration if Elementor Pro is active
         if (defined('ELEMENTOR_PRO_VERSION')) {
@@ -228,19 +342,67 @@ class Priority_Ticket_Payment {
             'payment_methods' => array('stripe', 'paypal'),
             'require_payment_before_submission' => 'yes',
             'max_file_size' => '10', // MB
+            'max_attachments' => '3', // Maximum number of files
             'allowed_file_types' => array('pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'gif'),
             // Form Mapping defaults
             'ticket_form_id_a' => '',
             'ticket_form_id_b' => '',
             'ticket_form_id_c' => '',
+            'additional_form_ids' => '',
             'product_id_a' => '',
             'product_id_b' => '',
             'coaching_product_ids' => '',
+            // Notification settings
+            'priority_ticket_admin_email' => '',
+            'send_reply_notifications' => 'yes',
+            'reply_notification_subject' => '',
+            'reply_notification_template' => '',
         );
         
         add_option('priority_ticket_payment_settings', $default_options);
     }
     
+    /**
+     * Fix upload directory permissions (for existing installations)
+     */
+    private function fix_upload_directory_permissions() {
+        $upload_dir = wp_upload_dir();
+        
+        // Fix main plugin upload directory
+        $plugin_upload_dir = $upload_dir['basedir'] . '/priority-ticket-attachments';
+        if (file_exists($plugin_upload_dir)) {
+            $htaccess_content = "Options -Indexes\n";
+            $htaccess_content .= "# Allow direct file access for authorized downloads\n";
+            $htaccess_content .= "<Files ~ \"\\.(pdf|doc|docx|jpg|jpeg|png|gif|txt|zip|bmp|tiff|webp|rtf)$\">\n";
+            $htaccess_content .= "    Order allow,deny\n";
+            $htaccess_content .= "    Allow from all\n";
+            $htaccess_content .= "</Files>\n";
+            $htaccess_content .= "# Deny access to PHP files and other potentially dangerous files\n";
+            $htaccess_content .= "<Files ~ \"\\.(php|phtml|php3|php4|php5|pl|py|jsp|asp|sh|cgi)$\">\n";
+            $htaccess_content .= "    Order allow,deny\n";
+            $htaccess_content .= "    Deny from all\n";
+            $htaccess_content .= "</Files>\n";
+            file_put_contents($plugin_upload_dir . '/.htaccess', $htaccess_content);
+        }
+        
+        // Fix priority-tickets directory
+        $priority_tickets_dir = $upload_dir['basedir'] . '/priority-tickets';
+        if (file_exists($priority_tickets_dir)) {
+            $htaccess_content = "Options -Indexes\n";
+            $htaccess_content .= "# Allow direct file access for authorized downloads\n";
+            $htaccess_content .= "<Files ~ \"\\.(pdf|doc|docx|jpg|jpeg|png|gif|txt|zip|bmp|tiff|webp|rtf)$\">\n";
+            $htaccess_content .= "    Order allow,deny\n";
+            $htaccess_content .= "    Allow from all\n";
+            $htaccess_content .= "</Files>\n";
+            $htaccess_content .= "# Deny access to PHP files and other potentially dangerous files\n";
+            $htaccess_content .= "<Files ~ \"\\.(php|phtml|php3|php4|php5|pl|py|jsp|asp|sh|cgi)$\">\n";
+            $htaccess_content .= "    Order allow,deny\n";
+            $htaccess_content .= "    Deny from all\n";
+            $htaccess_content .= "</Files>\n";
+            file_put_contents($priority_tickets_dir . '/.htaccess', $htaccess_content);
+        }
+    }
+
     /**
      * Create upload directory for attachments
      */
@@ -253,9 +415,18 @@ class Priority_Ticket_Payment {
         if (!file_exists($plugin_upload_dir)) {
             wp_mkdir_p($plugin_upload_dir);
             
-            // Create .htaccess file for security
+            // Create .htaccess file for security - allow file access but deny directory listing
             $htaccess_content = "Options -Indexes\n";
-            $htaccess_content .= "deny from all\n";
+            $htaccess_content .= "# Allow direct file access for authorized downloads\n";
+            $htaccess_content .= "<Files ~ \"\\.(pdf|doc|docx|jpg|jpeg|png|gif|txt|zip|bmp|tiff|webp|rtf)$\">\n";
+            $htaccess_content .= "    Order allow,deny\n";
+            $htaccess_content .= "    Allow from all\n";
+            $htaccess_content .= "</Files>\n";
+            $htaccess_content .= "# Deny access to PHP files and other potentially dangerous files\n";
+            $htaccess_content .= "<Files ~ \"\\.(php|phtml|php3|php4|php5|pl|py|jsp|asp|sh|cgi)$\">\n";
+            $htaccess_content .= "    Order allow,deny\n";
+            $htaccess_content .= "    Deny from all\n";
+            $htaccess_content .= "</Files>\n";
             file_put_contents($plugin_upload_dir . '/.htaccess', $htaccess_content);
             
             // Create index.php file for security
@@ -268,9 +439,18 @@ class Priority_Ticket_Payment {
         if (!file_exists($priority_tickets_dir)) {
             wp_mkdir_p($priority_tickets_dir);
             
-            // Create .htaccess file for security
+            // Create .htaccess file for security - allow file access but deny directory listing
             $htaccess_content = "Options -Indexes\n";
-            $htaccess_content .= "deny from all\n";
+            $htaccess_content .= "# Allow direct file access for authorized downloads\n";
+            $htaccess_content .= "<Files ~ \"\\.(pdf|doc|docx|jpg|jpeg|png|gif|txt|zip|bmp|tiff|webp|rtf)$\">\n";
+            $htaccess_content .= "    Order allow,deny\n";
+            $htaccess_content .= "    Allow from all\n";
+            $htaccess_content .= "</Files>\n";
+            $htaccess_content .= "# Deny access to PHP files and other potentially dangerous files\n";
+            $htaccess_content .= "<Files ~ \"\\.(php|phtml|php3|php4|php5|pl|py|jsp|asp|sh|cgi)$\">\n";
+            $htaccess_content .= "    Order allow,deny\n";
+            $htaccess_content .= "    Deny from all\n";
+            $htaccess_content .= "</Files>\n";
             file_put_contents($priority_tickets_dir . '/.htaccess', $htaccess_content);
             
             // Create index.php file for security

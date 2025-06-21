@@ -28,13 +28,14 @@ class Priority_Ticket_Payment_Frontend {
     
     /**
      * Priority ticket form shortcode
-     * Usage: [priority_ticket_form]
+     * Usage: [priority_ticket_form] or [priority_ticket_form form_id="f755476"]
      */
     public function priority_ticket_form_shortcode($atts) {
         $atts = shortcode_atts(array(
             'price' => Priority_Ticket_Payment::get_option('default_ticket_price', '50.00'),
             'title' => __('Submit Priority Ticket', 'priority-ticket-payment'),
             'description' => __('Submit your priority support ticket with payment.', 'priority-ticket-payment'),
+            'form_id' => '', // Allow specifying a specific form ID
         ), $atts);
         
         ob_start();
@@ -70,29 +71,33 @@ class Priority_Ticket_Payment_Frontend {
             return;
         }
         
-        // Detect user priority
+        // Always detect user priority (needed for form display logic)
         $user_priority = Priority_Ticket_Payment_Elementor_Utils::get_user_ticket_priority(get_current_user_id());
         
-        // Get form ID based on priority
-        $form_id_setting_map = array(
-            'A' => 'ticket_form_id_a',
-            'B' => 'ticket_form_id_b',
-            'C' => 'ticket_form_id_c',
-            'D' => 'ticket_form_id_d',
-        );
-        
-        $form_id = '';
-        if (isset($form_id_setting_map[$user_priority])) {
-            $form_id = Priority_Ticket_Payment::get_option($form_id_setting_map[$user_priority], '');
+        // Check if a specific form ID was provided via shortcode
+        if (!empty($atts['form_id'])) {
+            $form_id = sanitize_text_field($atts['form_id']);
+        } else {
+            // Get form ID based on priority
+            $form_id_setting_map = array(
+                'A' => 'ticket_form_id_a',
+                'B' => 'ticket_form_id_b',
+                'C' => 'ticket_form_id_c',
+                'D' => 'ticket_form_id_d',
+            );
+            
+            $form_id = '';
+            if (isset($form_id_setting_map[$user_priority])) {
+                $form_id = Priority_Ticket_Payment::get_option($form_id_setting_map[$user_priority], '');
+            }
         }
         
         // Check if form is configured
         if (empty($form_id)) {
             $priority_labels = array(
-                'A' => __('Premium (100€)', 'priority-ticket-payment'),
+                'A' => __('Coaching Client (Free)', 'priority-ticket-payment'),
                 'B' => __('Standard (50€)', 'priority-ticket-payment'),
                 'C' => __('Basic (100€)', 'priority-ticket-payment'),
-                'D' => __('Free', 'priority-ticket-payment'),
             );
             
             $priority_label = isset($priority_labels[$user_priority]) ? $priority_labels[$user_priority] : $user_priority;
@@ -188,6 +193,113 @@ class Priority_Ticket_Payment_Frontend {
         </div>
         
         <?php
+        // Add JavaScript to auto-populate name and email fields for logged-in users
+        if (is_user_logged_in()) {
+            $current_user = wp_get_current_user();
+            $user_display_name = !empty($current_user->display_name) ? $current_user->display_name : (!empty($current_user->first_name) && !empty($current_user->last_name) ? $current_user->first_name . ' ' . $current_user->last_name : $current_user->user_login);
+            $user_email = $current_user->user_email;
+            ?>
+            <script type="text/javascript">
+            document.addEventListener('DOMContentLoaded', function() {
+                // Auto-populate name and email fields for logged-in users
+                function populateUserFields() {
+                    // Define user data
+                    var userName = <?php echo wp_json_encode($user_display_name); ?>;
+                    var userEmail = <?php echo wp_json_encode($user_email); ?>;
+                    
+                    // Common selectors for name fields
+                    var nameSelectors = [
+                        'input[name="form_fields[name]"]',
+                        'input[name="form_fields[full_name]"]', 
+                        'input[name="form_fields[full name]"]',
+                        'input[name="form_fields[client_name]"]',
+                        'input[name="form_fields[your_name]"]',
+                        'input[id*="name"]',
+                        'input[placeholder*="name" i]',
+                        'input[placeholder*="Name" i]',
+                        '.elementor-field-group-name input',
+                        '.elementor-field-type-text input[placeholder*="name" i]'
+                    ];
+                    
+                    // Common selectors for email fields  
+                    var emailSelectors = [
+                        'input[name="form_fields[email]"]',
+                        'input[name="form_fields[email_address]"]',
+                        'input[name="form_fields[e-mail]"]',
+                        'input[name="form_fields[your_email]"]',
+                        'input[type="email"]',
+                        'input[id*="email"]',
+                        'input[placeholder*="email" i]',
+                        '.elementor-field-group-email input',
+                        '.elementor-field-type-email input'
+                    ];
+                    
+                    // Auto-populate name field
+                    nameSelectors.forEach(function(selector) {
+                        var nameField = document.querySelector(selector);
+                        if (nameField && nameField.value === '') {
+                            nameField.value = userName;
+                            // Trigger change event for any listeners
+                            var event = new Event('change', { bubbles: true });
+                            nameField.dispatchEvent(event);
+                        }
+                    });
+                    
+                    // Auto-populate email field
+                    emailSelectors.forEach(function(selector) {
+                        var emailField = document.querySelector(selector);
+                        if (emailField && emailField.value === '') {
+                            emailField.value = userEmail;
+                            // Trigger change event for any listeners
+                            var event = new Event('change', { bubbles: true });
+                            emailField.dispatchEvent(event);
+                        }
+                    });
+                }
+                
+                // Run immediately
+                populateUserFields();
+                
+                // Also run after a short delay to handle dynamic form loading
+                setTimeout(populateUserFields, 500);
+                
+                // Run when Elementor form is fully loaded (if using AJAX loading)
+                if (typeof jQuery !== 'undefined') {
+                    jQuery(document).on('elementor/popup/show', function() {
+                        setTimeout(populateUserFields, 100);
+                    });
+                }
+            });
+            </script>
+            <?php
+        }
+        
+        // Add file upload information for paid tiers
+        if (in_array($user_priority, array('A', 'B'))) {
+            $max_attachments = Priority_Ticket_Payment::get_option('max_attachments', '3');
+            ?>
+            <script type="text/javascript">
+            document.addEventListener('DOMContentLoaded', function() {
+                // Add file upload clarification for paid tiers
+                const formContainer = document.querySelector('.priority-ticket-form-container');
+                if (formContainer) {
+                    const notice = document.createElement('div');
+                    notice.className = 'file-upload-info';
+                    notice.style.cssText = 'background: #f0f8ff; border: 1px solid #4CAF50; padding: 12px; border-radius: 4px; margin-bottom: 20px; color: #2e7d32;';
+                    notice.innerHTML = '<strong><?php _e('File Uploads:', 'priority-ticket-payment'); ?></strong> <?php printf(__('You can upload up to %s attachments (PDF, JPG, PNG, etc.).', 'priority-ticket-payment'), esc_js($max_attachments)); ?>';
+                    
+                    const form = formContainer.querySelector('form') || formContainer.querySelector('.elementor-form');
+                    if (form) {
+                        form.parentNode.insertBefore(notice, form);
+                    } else {
+                        formContainer.insertBefore(notice, formContainer.firstChild);
+                    }
+                }
+            });
+            </script>
+            <?php
+        }
+        
         // Add special handling for Priority D (Free tier)
         if ($user_priority === 'D') {
             ?>
@@ -292,6 +404,14 @@ class Priority_Ticket_Payment_Frontend {
             border-radius: 4px;
             margin-bottom: 20px;
             color: #1565c0;
+        }
+        .file-upload-info {
+            background: #f0f8ff;
+            border: 1px solid #4CAF50;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            color: #2e7d32;
         }
         </style>
         <?php
@@ -410,10 +530,7 @@ class Priority_Ticket_Payment_Frontend {
             background-color: #ffeaa7;
             color: #d63031;
         }
-        .status-processing {
-            background-color: #74b9ff;
-            color: #ffffff;
-        }
+
         .status-completed {
             background-color: #00b894;
             color: #ffffff;

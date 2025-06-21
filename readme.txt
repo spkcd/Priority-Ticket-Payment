@@ -4,7 +4,7 @@ Donate link: https://sparkwebstudio.com/
 Tags: support, tickets, payment, woocommerce, elementor, awesome-support
 Requires at least: 5.0
 Tested up to: 6.4
-Stable tag: 1.1.0
+Stable tag: 1.2.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -104,6 +104,41 @@ By default, the plugin supports PDF, DOC, DOCX, JPG, JPEG, PNG, and GIF files. T
 
 == Changelog ==
 
+= 1.2.3 (2024-12-02) =
+* Fixed: Eliminated duplicate file attachment display in tickets
+* Fixed: Removed broken "4K 4K 4K" entries below proper download links
+* Improved: Optimized logging for better performance and cleaner error logs
+* Enhanced: Streamlined attachment processing workflow
+* Maintained: Secure file storage and download functionality
+
+= 1.2.2 (2024-01-XX) =
+* CRITICAL FIX: Custom thank you page redirects now work reliably
+* Fixed: Settings key mismatch that prevented custom thank you URLs from being read
+* Enhanced: Multi-layer redirect system with PHP, template, and JavaScript fallbacks
+* Enhanced: Upgraded to wp_safe_redirect() for better security
+* Added: Loop prevention with transient-based tracking
+* Added: Comprehensive debug script for troubleshooting
+* Improved: Error logging for all redirect attempts
+
+= 1.2.1 (2024-01-XX) =
+* Fixed: "Reply & Close" button now properly sets ticket status to "Closed"
+* Fixed: Email sending errors with proper HTML/text content payload
+* Enhanced: Comprehensive Post SMTP and WordPress mail debugging
+* Added: Duplicate prevention for email notifications
+* Improved: Multiple fallback methods for email delivery
+* Enhanced: Better error handling and logging
+
+= 1.2.0 (2024-01-XX) =
+* Added: Custom thank you page redirection after WooCommerce purchases
+* Added: Enhanced subject column in admin submissions with tooltips
+* Added: Improved file upload settings with tier-specific clarifications
+* Added: Client name only ticket titles for cleaner appearance
+* Added: Download attachment links in ticket body
+* Added: German email notifications for ticket replies
+* Fixed: Reply & Close status updates with comprehensive logging
+* Enhanced: Immediate reply visibility with advanced cache management
+* Improved: Removed order summary clutter from ticket interface
+
 = 1.1.0 (2025-05-29) =
 * Fixed: Awesome Support integration using correct wpas_insert_ticket function
 * Fixed: Priority taxonomy assignment with proper term IDs (134, 135, 136)
@@ -124,6 +159,18 @@ By default, the plugin supports PDF, DOC, DOCX, JPG, JPEG, PNG, and GIF files. T
 * Security implementations
 
 == Upgrade Notice ==
+
+= 1.2.3 =
+File attachment display fix: Eliminates duplicate attachments and broken "4K 4K 4K" entries. Performance optimization with reduced logging. Recommended update for cleaner ticket display.
+
+= 1.2.2 =
+CRITICAL FIX: Resolves custom thank you page redirect issues. Settings key mismatch fixed. Multi-layer redirect system ensures reliable custom thank you page functionality. Automatic migration for existing installations.
+
+= 1.2.1 =
+Major bug fixes for "Reply & Close" functionality and email notifications. Improved error handling and logging. Recommended update for all users.
+
+= 1.2.0 =
+Major feature update with custom thank you pages, enhanced admin interface, German email notifications, and improved ticket management. Recommended update.
 
 = 1.1.0 =
 Major fixes for Awesome Support integration and priority assignment. Ensure your Awesome Support priority terms have the correct IDs (134, 135, 136) before upgrading.
