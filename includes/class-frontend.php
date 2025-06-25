@@ -95,7 +95,7 @@ class Priority_Ticket_Payment_Frontend {
         // Check if form is configured
         if (empty($form_id)) {
             $priority_labels = array(
-                'A' => __('Coaching Client (Free)', 'priority-ticket-payment'),
+                'A' => __('Standard (50€)', 'priority-ticket-payment'),
                 'B' => __('Standard (50€)', 'priority-ticket-payment'),
                 'C' => __('Basic (100€)', 'priority-ticket-payment'),
             );

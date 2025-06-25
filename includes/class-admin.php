@@ -109,7 +109,7 @@ class Priority_Ticket_Payment_Admin {
             // Form Configuration - Core settings for the priority system
             array(
                 'id' => 'ticket_form_id_a',
-                'title' => __('Coaching Client Form ID (Free)', 'priority-ticket-payment'),
+                'title' => __('Legacy Form ID (50€)', 'priority-ticket-payment'),
                 'callback' => 'render_text_field',
                 'section' => 'priority_ticket_payment_form_mapping',
                 'args' => array('type' => 'text', 'placeholder' => 'Enter Elementor Form ID')
@@ -280,11 +280,10 @@ class Priority_Ticket_Payment_Admin {
         echo '<div style="background: #f0f8ff; padding: 15px; border-left: 4px solid #0073aa; margin-bottom: 20px;">';
         echo '<h4 style="margin-top: 0;">🎯 How Priority Detection Works:</h4>';
         echo '<ol style="margin: 0;">';
-        echo '<li><strong>Coaching Client (Free):</strong> Users who purchased <em>coaching products</em> (specified below) - FREE TICKETS</li>';
-        echo '<li><strong>Standard (50€):</strong> Users who have <em>any</em> completed/processing WooCommerce orders (but no coaching products)</li>';
+        echo '<li><strong>Standard (50€):</strong> Users who purchased <em>coaching products</em> (specified below)</li>';
         echo '<li><strong>Basic (100€):</strong> Guest users or users with no qualifying purchases</li>';
         echo '</ol>';
-        echo '<p style="margin-bottom: 0;"><strong>Note:</strong> Coaching clients always get free tickets (Ticket A). Regular customers pay based on their order history.</p>';
+        echo '<p style="margin-bottom: 0;"><strong>Note:</strong> Coaching clients get discounted 50€ tickets. All other users pay 100€ for basic support.</p>';
         echo '</div>';
     }
     

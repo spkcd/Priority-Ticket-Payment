@@ -5,6 +5,95 @@ All notable changes to the Priority Ticket Payment plugin will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.2] - 2024-12-19
+
+### 🔧 **CRITICAL FIX: Enhanced Original Filename Preservation**
+
+#### Advanced Filename Extraction System ✅ FIXED
+- **Root Cause**: Original filenames from Elementor forms were not being reliably captured, resulting in files being saved with random generated names
+- **Multi-Strategy Extraction**: Implemented 6 different strategies for extracting original filenames:
+  - ✅ **ELEMENTOR FIELD DATA**: Enhanced detection from Elementor form field metadata
+  - ✅ **$_FILES SUPERGLOBAL**: Direct capture from PHP upload data  
+  - ✅ **HIDDEN FIELD CAPTURE**: JavaScript-stored original names in multiple hidden fields
+  - ✅ **NORMALIZED FIELD DATA**: Enhanced field processing with original name extraction
+  - ✅ **URL EXTRACTION**: Smart extraction from file URLs when available
+  - ✅ **PATH EXTRACTION**: Fallback extraction from file paths with validation
+
+#### Enhanced JavaScript Implementation ✅ IMPROVED
+- **Multiple Hidden Fields**: JavaScript now creates multiple hidden fields with different naming patterns:
+  - Primary field: `{field_name}_original_names`
+  - Field ID pattern: `{field_id}_original_names`
+  - Form pattern: `form-field-{field_id}_original_names`
+  - Generic patterns: `attachment_original_names`, `file_original_names`
+- **Universal Compatibility**: Ensures maximum compatibility with server-side extraction logic
+- **Redundant Storage**: All hidden fields updated simultaneously for fail-safe operation
+
+#### Comprehensive Debugging System ✅ ENHANCED
+- **Detailed Logging**: Added extensive logging for troubleshooting filename issues:
+  - Raw field data logging from Elementor
+  - $_FILES and $_POST data inspection
+  - Original filename extraction results from each strategy
+  - File processing workflow tracking
+  - Success/failure reporting for each file processed
+
+#### Smart Fallback Logic ✅ BULLETPROOF
+- **Pattern Recognition**: Skips obviously generated filenames (hex patterns, random strings)
+- **Length Validation**: Ensures extracted filenames are meaningful (>3 characters)
+- **Extension Validation**: Verifies filenames have proper file extensions
+- **Graceful Degradation**: Falls back to URL/path extraction when other methods fail
+
+### 🎯 **Result**
+Original filenames are now properly preserved:
+- ✅ **"document.pdf"** stays as **"document.pdf"** (not "68504b2abf4f0.pdf")
+- ✅ **"image123.jpg"** stays as **"image123.jpg"** (not "a7b8c9d0e1f2.jpg")
+- ✅ **Multi-strategy extraction** ensures maximum filename preservation success rate
+- ✅ **Enhanced debugging** allows troubleshooting of any remaining filename issues
+- ✅ **Universal compatibility** works with various Elementor form configurations
+
+---
+
+## [1.5.1] - 2024-12-19
+
+### 🔄 **BREAKING CHANGE: Updated Pricing Structure**
+
+#### Eliminated Free Tier for Coaching Clients ✅ CHANGED
+- **NEW PRICING STRUCTURE**: Removed free tickets for coaching clients
+  - **Standard (50€)**: Users who have coaching products orders (previously free)
+  - **Basic (100€)**: Guest users or users with no qualifying purchases (unchanged)
+- **Priority Mapping**: 
+  - Priority A (legacy) and Priority B both now cost 50€ for coaching clients
+  - Priority C remains 100€ for all other users
+- **Simplified Logic**: Coaching clients → 50€, all others → 100€
+
+#### Updated User Priority Detection ✅ MODIFIED
+- **Removed Free Tier Logic**: `get_user_ticket_priority()` no longer returns Priority A for free tickets
+- **Coaching Clients**: Users with coaching products now get Priority B (50€) instead of Priority A (Free)
+- **Eliminated Order History Logic**: Removed logic that gave Priority B to users with any orders
+- **Simplified Assignment**: Only two tiers now - 50€ for coaching clients, 100€ for everyone else
+
+#### Updated Admin Interface ✅ REFRESHED
+- **Form Labels**: Updated "Coaching Client Form ID (Free)" to "Legacy Form ID (50€)"
+- **Priority Description**: Updated admin explanation to reflect new pricing structure
+- **Removed Free References**: All admin text updated to remove mentions of free tickets
+- **Coaching Product Description**: Updated to reflect 50€ pricing instead of free
+
+#### Technical Changes ✅ IMPLEMENTED
+- **Priority Configuration**: Priority A now uses 50€ pricing and product_id_b
+- **Static Handler**: Removed free tier handling logic from form submission processing
+- **Product Selection**: Priority A and B both use the same 50€ product configuration
+- **JavaScript Updates**: Form tier information updated to show correct pricing
+- **Frontend Display**: Updated priority labels to show new pricing structure
+
+### 🎯 **Result**
+Simplified and revenue-focused pricing system:
+- ✅ **No more free tickets** - all submissions now require payment
+- ✅ **Coaching clients get 50€ discount** (down from 100€ basic rate)
+- ✅ **Consistent pricing** across all coaching client forms
+- ✅ **Updated interface** reflects new structure throughout
+- ✅ **Backward compatibility** maintained for existing form configurations
+
+---
+
 ## [1.5.0] - 2024-12-19
 
 ### 🔄 **MAJOR: Restructured Priority Ticket System**

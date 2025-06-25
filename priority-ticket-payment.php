@@ -3,7 +3,7 @@
  * Plugin Name: Priority Ticket Payment
  * Plugin URI: https://sparkwebstudio.com/priority-ticket-payment
  * Description: A comprehensive WordPress plugin for managing priority ticket submissions with payment integration for WooCommerce and Awesome Support. Supports Elementor Pro forms with automatic ticket creation, priority assignment, and agent management.
- * Version: 1.5.0
+ * Version: 1.5.2
  * Author: SPARKWEBStudio
  * Author URI: https://sparkwebstudio.com/
  * Text Domain: priority-ticket-payment
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('PRIORITY_TICKET_PAYMENT_VERSION', '1.5.0');
+define('PRIORITY_TICKET_PAYMENT_VERSION', '1.5.2');
 define('PRIORITY_TICKET_PAYMENT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('PRIORITY_TICKET_PAYMENT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('PRIORITY_TICKET_PAYMENT_PLUGIN_FILE', __FILE__);

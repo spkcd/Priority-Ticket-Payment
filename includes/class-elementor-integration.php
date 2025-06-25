@@ -300,11 +300,11 @@ class Priority_Ticket_Payment_Elementor_Integration {
     private function get_priority_config($user_priority, $form_id) {
         $config = array(
             'A' => array(
-                'price' => 0.00,
-                'product_id_setting' => null,
+                'price' => 50.00, // Legacy priority A now redirects to 50€ pricing
+                'product_id_setting' => 'product_id_b',
                 'form_id_setting' => 'ticket_form_id_a',
-                'tier' => 'coaching_free',
-                'label' => 'Coaching Client (Free)',
+                'tier' => 'standard',
+                'label' => 'Standard (50€)',
             ),
             'B' => array(
                 'price' => 50.00,
@@ -822,14 +822,17 @@ class Priority_Ticket_Payment_Elementor_Integration {
                     error_log('Priority Ticket Payment: $_FILES data - ' . print_r($_FILES, true));
                 }
                 
+                // Also log $_POST data for debugging
+                error_log('Priority Ticket Payment: $_POST data - ' . print_r($_POST, true));
+                
                 // Elementor stores file URLs in the value, but we also have raw_value with file paths
                 $file_urls = is_array($field['value']) ? $field['value'] : array($field['value']);
                 $file_paths = isset($field['raw_value']) ? (is_array($field['raw_value']) ? $field['raw_value'] : array($field['raw_value'])) : array();
                 
-                // Check if Elementor provides original filenames in a separate field
+                // Enhanced original filename extraction with multiple strategies
                 $original_names = array();
                 
-                // Try multiple ways to get original filename from Elementor
+                // Strategy 1: Look for original names in field data (Elementor Pro)
                 if (isset($field['original_name'])) {
                     $original_names = is_array($field['original_name']) ? $field['original_name'] : array($field['original_name']);
                 } elseif (isset($field['files'])) {
@@ -851,36 +854,86 @@ class Priority_Ticket_Payment_Elementor_Integration {
                     }
                 }
                 
-                // Try to extract from $_FILES if available (for current upload)
+                // Strategy 2: Extract from $_FILES if available (for current upload)
                 if (empty($original_names) && !empty($_FILES)) {
-                    foreach ($_FILES as $file_input) {
+                    foreach ($_FILES as $file_input_key => $file_input) {
                         if (isset($file_input['name'])) {
                             if (is_array($file_input['name'])) {
-                                $original_names = array_merge($original_names, $file_input['name']);
+                                $original_names = array_merge($original_names, array_filter($file_input['name']));
                             } else {
-                                $original_names[] = $file_input['name'];
+                                if (!empty($file_input['name'])) {
+                                    $original_names[] = $file_input['name'];
+                                }
                             }
                         }
                     }
                 }
                 
-                // Try to extract from hidden fields created by our JavaScript
+                // Strategy 3: Look for hidden fields created by our JavaScript (most reliable for our custom implementation)
                 if (empty($original_names) && !empty($_POST)) {
+                    // Look for field-specific original names
+                    $field_id = isset($field['id']) ? $field['id'] : (isset($field['custom_id']) ? $field['custom_id'] : '');
+                    
+                    // Try multiple naming patterns for the hidden field
+                    $possible_keys = array(
+                        $field_id . '_original_names',
+                        'form-field-' . $field_id . '_original_names',
+                        $field['title'] . '_original_names',
+                    );
+                    
+                    // Also search all POST keys that contain '_original_names'
                     foreach ($_POST as $key => $value) {
                         if (strpos($key, '_original_names') !== false && !empty($value)) {
-                            $names = explode(',', $value);
-                            $original_names = array_merge($original_names, array_map('trim', $names));
+                            $possible_keys[] = $key;
+                        }
+                    }
+                    
+                    foreach ($possible_keys as $key) {
+                        if (isset($_POST[$key]) && !empty($_POST[$key])) {
+                            $names = explode(',', $_POST[$key]);
+                            $original_names = array_merge($original_names, array_map('trim', array_filter($names)));
+                            error_log('Priority Ticket Payment: Found original names in POST key: ' . $key . ' - ' . $_POST[$key]);
+                            break;
                         }
                     }
                 }
                 
-                // Try to extract from normalized fields (check for original_names field)
+                // Strategy 4: Extract from normalized fields (check for original_names field)
                 if (empty($original_names)) {
                     $normalized_fields = $this->normalize_fields(array($field));
                     foreach ($normalized_fields as $normalized_field) {
                         if (isset($normalized_field['original_names']) && !empty($normalized_field['original_names'])) {
                             $names = is_array($normalized_field['original_names']) ? $normalized_field['original_names'] : explode(',', $normalized_field['original_names']);
-                            $original_names = array_merge($original_names, array_map('trim', $names));
+                            $original_names = array_merge($original_names, array_map('trim', array_filter($names)));
+                        }
+                    }
+                }
+                
+                // Strategy 5: Try to extract from file URLs if they contain readable filenames
+                if (empty($original_names)) {
+                    foreach ($file_urls as $url) {
+                        if (!empty($url)) {
+                            $parsed_url = parse_url($url);
+                            $filename = basename($parsed_url['path']);
+                            $filename = urldecode($filename);
+                            
+                            // Skip if filename looks like a temporary/generated name
+                            if (!preg_match('/^[a-f0-9]{8,}/', $filename) && strlen($filename) > 3 && strpos($filename, '.') !== false) {
+                                $original_names[] = $filename;
+                            }
+                        }
+                    }
+                }
+                
+                // Strategy 6: Try to extract from file paths
+                if (empty($original_names)) {
+                    foreach ($file_paths as $path) {
+                        if (!empty($path)) {
+                            $filename = basename($path);
+                            // Skip if filename looks like a temporary/generated name
+                            if (!preg_match('/^[a-f0-9]{8,}/', $filename) && strlen($filename) > 3 && strpos($filename, '.') !== false) {
+                                $original_names[] = $filename;
+                            }
                         }
                     }
                 }
@@ -896,14 +949,36 @@ class Priority_Ticket_Payment_Elementor_Integration {
                     $original_names = array_map('trim', explode(',', $original_names[0]));
                 }
                 
+                // Remove empty values and ensure we have clean names
+                $original_names = array_filter($original_names, function($name) {
+                    return !empty(trim($name));
+                });
+                
                 // Log what original names we found
                 error_log('Priority Ticket Payment: Extracted original filenames - ' . print_r($original_names, true));
+                error_log('Priority Ticket Payment: Number of file URLs: ' . count($file_urls) . ', file paths: ' . count($file_paths) . ', original names: ' . count($original_names));
                 
                 // Process each file
                 for ($i = 0; $i < max(count($file_urls), count($file_paths)) && $uploaded_count < $max_files; $i++) {
                     $file_url = isset($file_urls[$i]) ? trim($file_urls[$i]) : '';
                     $file_path = isset($file_paths[$i]) ? trim($file_paths[$i]) : '';
                     $original_name = isset($original_names[$i]) ? trim($original_names[$i]) : '';
+                    
+                    // If we don't have an original name, try to extract it from the URL or path as a last resort
+                    if (empty($original_name)) {
+                        if (!empty($file_url)) {
+                            $url_filename = basename(parse_url($file_url, PHP_URL_PATH));
+                            $url_filename = urldecode($url_filename);
+                            if (!preg_match('/^[a-f0-9]{8,}/', $url_filename) && strlen($url_filename) > 3) {
+                                $original_name = $url_filename;
+                            }
+                        } elseif (!empty($file_path)) {
+                            $path_filename = basename($file_path);
+                            if (!preg_match('/^[a-f0-9]{8,}/', $path_filename) && strlen($path_filename) > 3) {
+                                $original_name = $path_filename;
+                            }
+                        }
+                    }
                     
                     if (!empty($file_url) || !empty($file_path)) {
                         // Try processing with file path first (more reliable), then fall back to URL
@@ -917,6 +992,7 @@ class Priority_Ticket_Payment_Elementor_Integration {
                         if ($attachment) {
                             $attachments[] = $attachment;
                             $uploaded_count++;
+                            error_log('Priority Ticket Payment: Successfully processed file - Original: ' . $attachment['original_name'] . ', Stored as: ' . $attachment['filename']);
                         }
                     }
                 }
@@ -1629,14 +1705,14 @@ class Priority_Ticket_Payment_Elementor_Integration {
         $price = 0;
         switch ($priority) {
             case 'A':
-                $price = 0; // Free for coaching clients
+                $price = 50; // Legacy Priority A now gets 50€ pricing
                 break;
             case 'B':
-                $price = 50;
+                $price = 50; // Standard for coaching clients
                 break;
             case 'C':
             default:
-                $price = 100; // Basic tier
+                $price = 100; // Basic tier for all others
                 break;
         }
         
@@ -1661,27 +1737,10 @@ class Priority_Ticket_Payment_Elementor_Integration {
             wp_die(__('Failed to process form submission. Please try again.', 'priority-ticket-payment'));
         }
         
-        // Handle free tier (Priority A - coaching clients)
-        if ($priority === 'A' || $price == 0) {
-            // For free tier, create ticket immediately if Awesome Support is enabled
-            if (Priority_Ticket_Payment::get_option('enable_awesome_support_integration', 'yes') === 'yes') {
-                $submission = Priority_Ticket_Payment_Database::get_submission($submission_id);
-                if ($submission) {
-                    // Create free tier ticket
-                    $instance = new self();
-                    $instance->create_free_tier_support_ticket($submission);
-                }
-            }
-            
-            // Redirect to thank you page
-            $redirect_url = home_url('?ticket_submitted=1&ticket_id=' . $token . '&tier=coaching_free');
-            wp_safe_redirect($redirect_url);
-            exit;
-        }
-        
-        // All other tiers require payment, so proceed to checkout
+        // All tiers now require payment, so proceed to checkout
         // Get product ID from plugin settings
-        if ($priority === 'B') {
+        if ($priority === 'A' || $priority === 'B') {
+            // Both Priority A (legacy) and B use the 50€ product
             $product_id = Priority_Ticket_Payment::get_option('product_id_b', 0);
         } else { // Priority C
             $product_id = Priority_Ticket_Payment::get_option('product_id_c', 0);
@@ -1795,7 +1854,7 @@ class Priority_Ticket_Payment_Elementor_Integration {
     public function enqueue_auto_population_script() {
         // Get all configured form IDs and their tiers
         $form_tiers = array(
-            Priority_Ticket_Payment::get_option('ticket_form_id_a', '') => array('tier' => 'A', 'limit' => 2500, 'price' => 'Free'),
+            Priority_Ticket_Payment::get_option('ticket_form_id_a', '') => array('tier' => 'A', 'limit' => 2500, 'price' => '50€'),
             Priority_Ticket_Payment::get_option('ticket_form_id_b', '') => array('tier' => 'B', 'limit' => 2500, 'price' => '50€'),
             Priority_Ticket_Payment::get_option('ticket_form_id_c', '') => array('tier' => 'C', 'limit' => 2500, 'price' => '100€'),
         );
@@ -2408,12 +2467,35 @@ class Priority_Ticket_Payment_Elementor_Integration {
                     // Mark this input as processed
                     fileInput.setAttribute('data-priority-ticket-file-enhanced', 'true');
                     
-                    // Create hidden field to store original filenames
+                    // Create multiple hidden fields to store original filenames with different naming patterns
+                    // This ensures maximum compatibility with server-side extraction logic
+                    var hiddenFields = [];
+                    
+                    // Primary hidden field
                     var originalNamesField = document.createElement('input');
                     originalNamesField.type = 'hidden';
                     originalNamesField.name = fileInput.name + '_original_names';
-                    originalNamesField.className = 'priority-ticket-original-names';
+                    originalNamesField.className = 'priority-ticket-original-names primary-original-names';
                     fileInput.parentNode.appendChild(originalNamesField);
+                    hiddenFields.push(originalNamesField);
+                    
+                    // Additional hidden fields with different naming patterns
+                    var fieldId = fileInput.id || fileInput.name || 'file_upload';
+                    var additionalPatterns = [
+                        fieldId + '_original_names',
+                        'form-field-' + fieldId + '_original_names',
+                        'attachment_original_names',
+                        'file_original_names'
+                    ];
+                    
+                    additionalPatterns.forEach(function(pattern) {
+                        var hiddenField = document.createElement('input');
+                        hiddenField.type = 'hidden';
+                        hiddenField.name = pattern;
+                        hiddenField.className = 'priority-ticket-original-names additional-original-names';
+                        fileInput.parentNode.appendChild(hiddenField);
+                        hiddenFields.push(hiddenField);
+                    });
                     
                     // Store accumulated files
                     var accumulatedFiles = [];
@@ -2577,15 +2659,27 @@ class Priority_Ticket_Payment_Elementor_Integration {
                         
                         fileInput.files = dataTransfer.files;
                         
-                        // Store original filenames in hidden field
-                        var originalNamesField = fileInput.parentNode.querySelector('.priority-ticket-original-names');
-                        if (originalNamesField) {
-                            originalNamesField.value = originalNames.join(',');
-                        }
+                        // Store original filenames in all hidden fields for maximum compatibility
+                        var originalNamesString = originalNames.join(',');
+                        hiddenFields.forEach(function(hiddenField) {
+                            hiddenField.value = originalNamesString;
+                        });
+                        
+                        // Also update any existing hidden fields we might have missed
+                        var allOriginalNameFields = fileInput.parentNode.querySelectorAll('.priority-ticket-original-names');
+                        allOriginalNameFields.forEach(function(field) {
+                            field.value = originalNamesString;
+                        });
                         
                         // Trigger change event for form validation
                         var event = new Event('change', { bubbles: true });
                         fileInput.dispatchEvent(event);
+                        
+                        // Also trigger change events on hidden fields for any listeners
+                        hiddenFields.forEach(function(hiddenField) {
+                            var changeEvent = new Event('change', { bubbles: true });
+                            hiddenField.dispatchEvent(changeEvent);
+                        });
                     }
                     
                     // Function to format file size
