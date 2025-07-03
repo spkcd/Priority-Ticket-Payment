@@ -153,11 +153,13 @@ class Priority_Ticket_Payment_Elementor_Integration {
         $form_id_a = Priority_Ticket_Payment::get_option('ticket_form_id_a', '');
         $form_id_b = Priority_Ticket_Payment::get_option('ticket_form_id_b', '');
         $form_id_c = Priority_Ticket_Payment::get_option('ticket_form_id_c', '');
+        $form_id_d = Priority_Ticket_Payment::get_option('ticket_form_id_d', '');
         
         // Only add non-empty form IDs
         if (!empty($form_id_a)) $configured_forms[] = $form_id_a;
         if (!empty($form_id_b)) $configured_forms[] = $form_id_b;
         if (!empty($form_id_c)) $configured_forms[] = $form_id_c;
+        if (!empty($form_id_d)) $configured_forms[] = $form_id_d;
         
         // Add additional form IDs from settings
         $additional_form_ids = Priority_Ticket_Payment::get_option('additional_form_ids', '');
@@ -214,7 +216,13 @@ class Priority_Ticket_Payment_Elementor_Integration {
         // Check if this is the free form (Priority D)
         $free_form_id = Priority_Ticket_Payment::get_option('ticket_form_id_d', '');
         if ($form_id === $free_form_id) {
-            $user_priority = 'D'; // Free tier for everyone
+            // Free forms only work for logged-in users
+            if (!is_user_logged_in()) {
+                error_log('Priority Ticket Payment: Free form submission rejected - user not logged in');
+                // You could add custom error handling here if needed
+                return;
+            }
+            $user_priority = 'D'; // Free tier for logged-in users
         } else {
             $user_priority = Priority_Ticket_Payment_Elementor_Utils::get_user_ticket_priority($user_id);
         }
@@ -319,6 +327,13 @@ class Priority_Ticket_Payment_Elementor_Integration {
                 'form_id_setting' => 'ticket_form_id_c',
                 'tier' => 'basic',
                 'label' => 'Basic (100€)',
+            ),
+            'D' => array(
+                'price' => 0.00,
+                'product_id_setting' => null, // No product needed for free tier
+                'form_id_setting' => 'ticket_form_id_d',
+                'tier' => 'free',
+                'label' => 'Free (0€)',
             ),
         );
         
@@ -434,6 +449,9 @@ class Priority_Ticket_Payment_Elementor_Integration {
         if ($user_priority === 'A') {
             $priority_term_id = 134; // a-ticket priority for coaching clients (free)
             $tier_name = 'coaching_free';
+        } elseif ($user_priority === 'D') {
+            $priority_term_id = 134; // a-ticket priority for free forms
+            $tier_name = 'free';
         } else {
             $priority_term_id = 136; // c-ticket priority for basic tier
             $tier_name = 'basic';

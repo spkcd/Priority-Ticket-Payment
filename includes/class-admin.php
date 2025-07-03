@@ -130,6 +130,18 @@ class Priority_Ticket_Payment_Admin {
             ),
 
             array(
+                'id' => 'ticket_form_id_d',
+                'title' => __('Free Ticket Form ID (0€)', 'priority-ticket-payment'),
+                'callback' => 'render_text_field',
+                'section' => 'priority_ticket_payment_form_mapping',
+                'args' => array(
+                    'type' => 'text', 
+                    'placeholder' => 'Enter Elementor Form ID',
+                    'description' => __('Form for creating free tickets. Only works for logged-in users.', 'priority-ticket-payment')
+                )
+            ),
+
+            array(
                 'id' => 'additional_form_ids',
                 'title' => __('Additional Form IDs', 'priority-ticket-payment'),
                 'callback' => 'render_text_field',
@@ -282,8 +294,9 @@ class Priority_Ticket_Payment_Admin {
         echo '<ol style="margin: 0;">';
         echo '<li><strong>Standard (50€):</strong> Users who purchased <em>coaching products</em> (specified below)</li>';
         echo '<li><strong>Basic (100€):</strong> Guest users or users with no qualifying purchases</li>';
+        echo '<li><strong>Free (0€):</strong> Logged-in users using the designated free form only</li>';
         echo '</ol>';
-        echo '<p style="margin-bottom: 0;"><strong>Note:</strong> Coaching clients get discounted 50€ tickets. All other users pay 100€ for basic support.</p>';
+        echo '<p style="margin-bottom: 0;"><strong>Note:</strong> Coaching clients get discounted 50€ tickets. All other users pay 100€ for basic support. Free forms require user login and create tickets immediately without payment.</p>';
         echo '</div>';
     }
     
@@ -323,6 +336,14 @@ class Priority_Ticket_Payment_Admin {
         // Add helper text for form mapping fields
         if (in_array($id, array('ticket_form_id_a', 'ticket_form_id_b', 'ticket_form_id_c', 'ticket_form_id_d'))) {
             echo '<p class="description">' . __('Find this in Elementor Editor → Form Settings → Advanced → Form ID', 'priority-ticket-payment') . '</p>';
+        }
+        
+        // Add specific description for free form field
+        if ($id === 'ticket_form_id_d') {
+            $description = isset($args['description']) ? $args['description'] : '';
+            if ($description) {
+                echo '<p class="description" style="color: #d63638; font-weight: 600;">' . esc_html($description) . '</p>';
+            }
         }
         
         if (in_array($id, array('product_id_a', 'product_id_b', 'product_id_c'))) {

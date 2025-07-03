@@ -5,6 +5,25 @@ All notable changes to the Priority Ticket Payment plugin will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.3] - 2024-12-26
+
+### Added
+- **Free Ticket Form Option**: Added new setting for free ticket form ID (ticket_form_id_d)
+- **Logged-in User Restriction**: Free forms only work for logged-in users for security
+- **Priority D Tier**: New free tier (0€) with direct ticket creation, no payment required
+- **Admin Configuration**: New form field in settings for "Free Ticket Form ID (0€)"
+
+### Changed
+- Updated form processing logic to handle free tier submissions
+- Enhanced priority configuration to include tier D (free)
+- Updated free tier support ticket creation with proper priority assignment
+
+### Technical Details
+- Form ID 26148e9 can now be configured as a free form in admin settings
+- Free forms bypass payment process and create tickets immediately
+- Only logged-in users can submit free forms (security measure)
+- Free tickets get a-ticket priority (priority term ID 134)
+
 ## [1.5.2] - 2024-12-19
 
 ### 🔧 **CRITICAL FIX: Enhanced Original Filename Preservation**
@@ -1848,3 +1867,24 @@ For technical support, bug reports, or feature requests:
 - **MAJOR** version (X.0.0) - Incompatible API changes
 - **MINOR** version (0.X.0) - New functionality in a backwards compatible manner  
 - **PATCH** version (0.0.X) - Backwards compatible bug fixes 
+
+## [1.3.10] - 2024-12-26
+
+### Added
+- **Free Ticket Form Option**: Added new setting for free ticket form ID (ticket_form_id_d)
+- **Logged-in User Restriction**: Free forms only work for logged-in users for security
+- **Priority D Tier**: New free tier (0€) with direct ticket creation, no payment required
+- **Admin Configuration**: New form field in settings for "Free Ticket Form ID (0€)"
+
+### Changed
+- Updated form processing logic to handle free tier submissions
+- Enhanced priority configuration to include tier D (free)
+- Updated free tier support ticket creation with proper priority assignment
+
+### Technical Details
+- Form ID 26148e9 can now be configured as a free form in admin settings
+- Free forms bypass payment process and create tickets immediately
+- Only logged-in users can submit free forms (security measure)
+- Free tickets get a-ticket priority (priority term ID 134)
+
+## [1.3.9] - 2024-12-26
